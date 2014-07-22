@@ -1,4 +1,4 @@
-package sql;
+package com.fivetran.sql;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;

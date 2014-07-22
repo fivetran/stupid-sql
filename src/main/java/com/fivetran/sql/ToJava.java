@@ -1,4 +1,4 @@
-package sql;
+package com.fivetran.sql;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;

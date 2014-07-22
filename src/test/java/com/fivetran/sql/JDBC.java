@@ -1,4 +1,4 @@
-package sql;
+package com.fivetran.sql;
 
 import org.junit.Test;
 

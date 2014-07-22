@@ -1,4 +1,4 @@
-package sql;
+package com.fivetran.sql;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;

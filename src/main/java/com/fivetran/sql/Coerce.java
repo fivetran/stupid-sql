@@ -1,4 +1,4 @@
-package sql;
+package com.fivetran.sql;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;

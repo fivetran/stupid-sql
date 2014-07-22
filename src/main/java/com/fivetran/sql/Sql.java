@@ -1,4 +1,4 @@
-package sql;
+package com.fivetran.sql;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;

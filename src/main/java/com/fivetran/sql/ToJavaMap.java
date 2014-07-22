@@ -1,4 +1,4 @@
-package sql;
+package com.fivetran.sql;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;

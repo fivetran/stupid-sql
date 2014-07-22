@@ -29,45 +29,6 @@ public class Sql {
     // TODO transaction()
 
     /**
-     * Generate a SQL query that inserts a value of type `T` into `tableName`.
-     * <p/><p/>
-     * {@code insert("t", Row.class).execute(row)}
-     * <p/>
-     * is a more concise alternative to
-     * <p/>
-     * {@code statement("INSERT INTO t VALUES (a, b, c, ...)").execute(row.a, row.b, row.c, ...)}
-     *
-     * @param tableName Name of the table
-     * @return Function that inserts a row into the table
-     */
-    public <T> Insert<T> insert(String tableName, Class<T> type) throws SQLException {
-        ResultSetMetaData schema = metaData("SELECT * FROM " + tableName);
-        String sql = generateInsert(tableName, schema);
-        ToSql<T> toSql = toSql(type, schema);
-
-        return new Insert<T>() {
-            @Override
-            public boolean execute(T values) throws SQLException {
-                try (Connection connection = open(database);
-                     PreparedStatement query = connection.prepareStatement(sql)) {
-
-                    toSql.populate(values, query);
-
-                    return query.execute();
-                }
-            }
-
-            @Override
-            public BatchInsert<T> batch() throws SQLException {
-                Connection connection = open(database);
-                PreparedStatement query = connection.prepareStatement(sql);
-
-                return new BatchInsert<>(connection, query, toSql);
-            }
-        };
-    }
-
-    /**
      * Create a {@code Query} which can be executed to produce a Stream<Row>.
      * <pre>
      * {@code
@@ -155,13 +116,6 @@ public class Sql {
                 };
             }
         };
-    }
-
-    private <T> ToSql<T> toSql(Class<T> type, ResultSetMetaData schema) throws SQLException {
-        if (type == Map.class)
-            return (ToSql<T>) new ToSqlFromMap(schema);
-        else
-            throw new RuntimeException("Unimplemented");
     }
 
     private <T> ToJava<T> toJava(ResultSetMetaData schema, Class<T> type) throws SQLException {
@@ -253,43 +207,6 @@ public class Sql {
         }
     }
 
-
-    private String generateInsert(String tableName, ResultSetMetaData metaData) throws SQLException {
-        StringBuilder acc = new StringBuilder();
-
-        acc.append("INSERT INTO ");
-        acc.append(tableName);
-        acc.append(" (");
-        generateKeys(metaData, acc);
-        acc.append(")\nVALUES (");
-        generateSlots(metaData, acc);
-        acc.append(")");
-
-        return acc.toString();
-    }
-
-    private void generateSlots(ResultSetMetaData metaData, StringBuilder acc) throws SQLException {
-        for (int i = 1; i < metaData.getColumnCount(); i++) {
-            acc.append("?::");
-            acc.append(metaData.getColumnTypeName(i));
-            acc.append(", ");
-        }
-        acc.append("?::");
-        acc.append(metaData.getColumnTypeName(metaData.getColumnCount()));
-    }
-
-    private void generateKeys(ResultSetMetaData metaData, StringBuilder acc) throws SQLException {
-        for (int i = 1; i < metaData.getColumnCount(); i++) {
-            acc.append('"');
-            acc.append(metaData.getColumnName(i));
-            acc.append('"');
-            acc.append(", ");
-        }
-        acc.append('"');
-        acc.append(metaData.getColumnName(metaData.getColumnCount()));
-        acc.append('"');
-    }
-
     /**
      * If debug logging is enabled, check if the returned connection has been closed after 1 second
      *
@@ -337,12 +254,6 @@ public class Sql {
         public T apply(ResultSet row) throws SQLException;
     }
 
-    public interface Insert<T> {
-        public boolean execute(T values) throws SQLException;
-
-        BatchInsert<T> batch() throws SQLException;
-    }
-
     public class Batch implements AutoCloseable {
         private final Connection connection;
         private final PreparedStatement statement;
@@ -354,33 +265,6 @@ public class Sql {
 
         public void add(Object... parameters) throws SQLException {
             populate(connection, statement, parameters);
-            statement.addBatch();
-        }
-
-        public int[] execute() throws SQLException {
-            return statement.executeBatch();
-        }
-
-        @Override
-        public void close() throws SQLException {
-            statement.close();
-            connection.close();
-        }
-    }
-
-    public class BatchInsert<T> implements AutoCloseable {
-        private final Connection connection;
-        private final PreparedStatement statement;
-        private final ToSql<T> toSql;
-
-        public BatchInsert(Connection connection, PreparedStatement statement, ToSql<T> toSql) {
-            this.connection = connection;
-            this.statement = statement;
-            this.toSql = toSql;
-        }
-
-        public void add(T value) throws SQLException {
-            toSql.populate(value, statement);
             statement.addBatch();
         }
 

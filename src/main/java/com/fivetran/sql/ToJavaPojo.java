@@ -3,6 +3,7 @@ package com.fivetran.sql;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Modifier;
 import java.lang.reflect.Type;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -15,6 +16,9 @@ public class ToJavaPojo<T> implements ToJava<T> {
     private final int[] columnIndex;
 
     public ToJavaPojo(ResultSetMetaData metaData, Class<T> javaType) throws SQLException {
+        if (javaType.isMemberClass() && !Modifier.isStatic(javaType.getModifiers()))
+            throw new IllegalArgumentException(javaType.getName() + " needs to be static to be used as a SQL row type");
+
         constructor = (Constructor<T>) Arrays.stream(javaType.getConstructors())
                                              .filter(ToJavaPojo::isAnnotated)
                                              .findFirst()

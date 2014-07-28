@@ -28,6 +28,16 @@ public class Sql {
 
     // TODO transaction()
 
+    public DirectQuery query(@Language("SQL") String sql) throws SQLException {
+        return parameters -> {
+            Connection connection = open(database);
+            PreparedStatement query = connection.prepareStatement(sql);
+            populate(connection, query, parameters);
+
+            return new ResultSetConnection(query.executeQuery(), connection);
+        };
+    }
+
     /**
      * Create a {@code Query} which can be executed to produce a Stream<Row>.
      * <pre>
@@ -236,12 +246,40 @@ public class Sql {
         return connection;
     }
 
+    public interface DirectQuery<T> {
+        /**
+         * Allocate a one-time-use {@link java.sql.Connection} and perform the embedded SQL query.
+         * When the returned {@code ResultSet} is closed, the {@code Connection} will also be closed.
+         *
+         * @param parameters
+         * @return
+         * @throws SQLException
+         */
+        ResultSet execute(Object... parameters) throws SQLException;
+    }
+
     @FunctionalInterface
     public interface Query<T> {
+        /**
+         * Allocate a one-time-use {@link java.sql.Connection} and perform the embedded SQL query.
+         * When the returned {@code Stream} is closed, the {@code Connection} will also be closed.
+         *
+         * @param parameters
+         * @return
+         * @throws SQLException
+         */
         Stream<T> execute(Object... parameters) throws SQLException;
     }
 
     public interface Statement {
+        /**
+         * Allocate a one-time-use {@link java.sql.Connection}, perform the embedded SQL query, and
+         * close the {@code Connection}
+         *
+         * @param parameters
+         * @return
+         * @throws SQLException
+         */
         boolean execute(Object... parameters) throws SQLException;
 
         Batch batch() throws SQLException;

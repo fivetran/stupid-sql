@@ -29,13 +29,12 @@ public class Sql {
     // TODO transaction()
 
     public DirectQuery query(@Language("SQL") String sql) throws SQLException {
-        return parameters -> {
-            Connection connection = open(database);
+        return parameters -> withConnection(connection -> {
             PreparedStatement query = connection.prepareStatement(sql);
             populate(connection, query, parameters);
 
             return new ResultSetConnection(query.executeQuery(), connection);
-        };
+        });
     }
 
     /**
@@ -56,13 +55,12 @@ public class Sql {
         ResultSetMetaData schema = metaData(sql);
         ToJava<T> coerce = toJava(schema, type);
 
-        return parameters -> {
-            Connection connection = open(database);
+        return parameters -> withConnection(connection -> {
             PreparedStatement query = connection.prepareStatement(sql);
             populate(connection, query, parameters);
 
             return stream(connection, query, coerce::coerce);
-        };
+        });
     }
 
     private Cache<String, ResultSetMetaData> metaDataCache = CacheBuilder.newBuilder()
@@ -108,24 +106,54 @@ public class Sql {
 
             @Override
             public Batch batch() throws SQLException {
-                Connection connection = open(database);
-                PreparedStatement query = connection.prepareStatement(sql);
+                return withConnection(connection -> {
+                    PreparedStatement query = connection.prepareStatement(sql);
 
-                return new Batch(connection, query);
+                    return new Batch(connection, query);
+                });
             }
 
             @Override
             public <K> Query<K> returnGeneratedKeys(Class<K> keyType) {
-                return parameters -> {
-                    Connection connection = open(database);
+                return parameters -> withConnection(connection -> {
                     PreparedStatement query = connection.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS);
                     populate(connection, query, parameters);
                     query.execute();
 
                     return stream(connection, query, query.getGeneratedKeys(), row -> (K) Coerce.sqlToJava(row, 1, keyType));
-                };
+                });
             }
         };
+    }
+
+    /**
+     * Execute body with a connection open
+     * If body succeeds, return its result
+     * If body throws an exception, close the connection and re-throw
+     *
+     * @param body A closure that produces an AutoCloseable which closes connection
+     * @param <T> The result of evaluating body
+     * @return Body, evaluated with a connection, safely
+     */
+    private <T extends AutoCloseable> T withConnection(SafeConnection<T> body) throws SQLException {
+        Connection connection = null;
+        boolean succeeded = false;
+
+        try {
+            connection = open(database);
+            T result = body.execute(connection);
+            succeeded = true;
+
+            return result;
+        } finally {
+            if (!succeeded && connection != null)
+                connection.close();
+        }
+    }
+
+    @FunctionalInterface
+    private static interface SafeConnection<T> {
+        public T execute(Connection connection) throws SQLException;
     }
 
     private <T> ToJava<T> toJava(ResultSetMetaData schema, Class<T> type) throws SQLException {
@@ -137,14 +165,14 @@ public class Sql {
 
     private <T> Stream<T> stream(Connection connection,
                                  PreparedStatement statement,
-                                 final RowFunction<T> rowFunction) throws SQLException {
+                                 RowFunction<T> rowFunction) throws SQLException {
         return stream(connection, statement, statement.executeQuery(), rowFunction);
     }
 
     private <T> Stream<T> stream(Connection connection,
                                  PreparedStatement statement,
                                  ResultSet resultSet,
-                                 final RowFunction<T> rowFunction) {
+                                 RowFunction<T> rowFunction) {
         Iterator<T> it = new Iterator<T>() {
             /**
              * true if we know there is a next row

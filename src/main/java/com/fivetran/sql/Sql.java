@@ -268,7 +268,7 @@ public class Sql {
                 } catch (SQLException e) {
                     throw new RuntimeException(e);
                 }
-            }, 1, TimeUnit.SECONDS);
+            }, 5, TimeUnit.SECONDS);
         }
 
         return connection;

@@ -3,6 +3,7 @@ package com.fivetran.sql;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Lists;
+import org.postgresql.util.PGobject;
 
 import java.io.IOException;
 import java.lang.reflect.ParameterizedType;
@@ -153,7 +154,13 @@ public class Coerce {
     public static Object javaToSql(Connection connection, Object value, String type) throws SQLException {
         if (type.equals("json"))
             try {
-                return Config.JSON.writeValueAsString(value); // TODO PGobject
+                String serialized = Config.JSON.writeValueAsString(value); // TODO PGobject
+                PGobject json = new PGobject();
+
+                json.setType("json");
+                json.setValue(serialized);
+
+                return json;
             } catch (JsonProcessingException e) {
                 throw new RuntimeException(e);
             }

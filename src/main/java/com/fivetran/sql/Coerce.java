@@ -142,7 +142,10 @@ public class Coerce {
         String text = row.getString(column);
 
         try {
-            return Config.JSON.readValue(text, new Resolved(element));
+            if (text == null)
+                return null;
+            else
+                return Config.JSON.readValue(text, new Resolved(element));
         } catch (IOException e) {
             throw new SqlMappingException(e);
         }

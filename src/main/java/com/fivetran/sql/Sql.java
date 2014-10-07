@@ -32,8 +32,9 @@ public class Sql {
         return parameters -> withConnection(connection -> {
             PreparedStatement query = connection.prepareStatement(sql);
             populate(connection, query, parameters);
+            FixDates fixDates = new FixDates(query.executeQuery());
 
-            return new ResultSetConnection(query.executeQuery(), connection);
+            return new ResultSetConnection(fixDates, connection);
         });
     }
 
@@ -166,7 +167,9 @@ public class Sql {
     private <T> Stream<T> stream(Connection connection,
                                  PreparedStatement statement,
                                  RowFunction<T> rowFunction) throws SQLException {
-        return stream(connection, statement, statement.executeQuery(), rowFunction);
+        FixDates fixDates = new FixDates(statement.executeQuery());
+
+        return stream(connection, statement, fixDates, rowFunction);
     }
 
     private <T> Stream<T> stream(Connection connection,

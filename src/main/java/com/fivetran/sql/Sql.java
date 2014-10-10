@@ -1,7 +1,11 @@
 package com.fivetran.sql;
 
+import com.fivetran.sql.named.NamedParameters;
+import com.fivetran.sql.named.ParsedSql;
+import com.fivetran.sql.stream.CloseableStream;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.google.common.collect.Maps;
 import org.intellij.lang.annotations.Language;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,12 +60,17 @@ public class Sql {
         ResultSetMetaData schema = metaData(sql);
         ToJava<T> coerce = toJava(schema, type);
 
-        return parameters -> withConnection(connection -> {
-            PreparedStatement query = connection.prepareStatement(sql);
-            populate(connection, query, parameters);
+        return new Query<T>(sql) {
+            @Override
+            public Stream<T> execute(Object... parameters) throws SQLException {
+                return withConnection(connection -> {
+                    PreparedStatement query = connection.prepareStatement(sql);
+                    populate(connection, query, parameters);
 
-            return stream(connection, query, coerce::coerce);
-        });
+                    return stream(connection, query, coerce::coerce);
+                });
+            }
+        };
     }
 
     private Cache<String, ResultSetMetaData> metaDataCache = CacheBuilder.newBuilder()
@@ -93,7 +102,7 @@ public class Sql {
      * @throws SQLException
      */
     public Statement statement(@Language("SQL") String sql) throws SQLException {
-        return new Statement() {
+        return new Statement(sql) {
             @Override
             public boolean execute(Object... parameters) throws SQLException {
                 try (Connection connection = open(database);
@@ -103,26 +112,6 @@ public class Sql {
 
                     return query.execute();
                 }
-            }
-
-            @Override
-            public Batch batch() throws SQLException {
-                return withConnection(connection -> {
-                    PreparedStatement query = connection.prepareStatement(sql);
-
-                    return new Batch(connection, query);
-                });
-            }
-
-            @Override
-            public <K> Query<K> returnGeneratedKeys(Class<K> keyType) {
-                return parameters -> withConnection(connection -> {
-                    PreparedStatement query = connection.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS);
-                    populate(connection, query, parameters);
-                    query.execute();
-
-                    return stream(connection, query, query.getGeneratedKeys(), row -> (K) Coerce.sqlToJava(row, 1, keyType));
-                });
             }
         };
     }
@@ -289,8 +278,13 @@ public class Sql {
         ResultSet execute(Object... parameters) throws SQLException;
     }
 
-    @FunctionalInterface
-    public interface Query<T> {
+    public abstract class Query<T> {
+        final String sql;
+
+        public Query(String sql) {
+            this.sql = sql;
+        }
+
         /**
          * Allocate a one-time-use {@link java.sql.Connection} and perform the embedded SQL query.
          * When the returned {@code Stream} is closed, the {@code Connection} will also be closed.
@@ -299,10 +293,43 @@ public class Sql {
          * @return
          * @throws SQLException
          */
-        Stream<T> execute(Object... parameters) throws SQLException;
+        public abstract Stream<T> execute(Object... parameters) throws SQLException;
+
+        public QueryBuilder<T> put(String paramName, Object paramValue) {
+            return new QueryBuilder<T>(this).put(paramName, paramValue);
+        }
     }
 
-    public interface Statement {
+    public static class QueryBuilder<T> {
+        final Query<T> delegate;
+        final ParsedSql parsedSql;
+        final Map<String, Object> parameters = Maps.newHashMap();
+
+        public QueryBuilder(Query<T> delegate) {
+            this.delegate = delegate;
+            parsedSql = NamedParameters.parseSqlStatement(delegate.sql);
+        }
+
+        public QueryBuilder<T> put(String paramName, Object paramValue) {
+            parameters.put(paramName, paramValue);
+
+            return this;
+        }
+
+        public Stream<T> execute() throws SQLException {
+            Object[] values = NamedParameters.buildValueArray(parsedSql, parameters, null);
+
+            return delegate.execute(values);
+        }
+    }
+
+    public abstract class Statement {
+        final String sql;
+
+        protected Statement(String sql) {
+            this.sql = sql;
+        }
+
         /**
          * Allocate a one-time-use {@link java.sql.Connection}, perform the embedded SQL query, and
          * close the {@code Connection}
@@ -311,11 +338,57 @@ public class Sql {
          * @return
          * @throws SQLException
          */
-        boolean execute(Object... parameters) throws SQLException;
+        public abstract boolean execute(Object... parameters) throws SQLException;
 
-        Batch batch() throws SQLException;
+        public StatementBuilder put(String paramName, Object paramValue) {
+            return new StatementBuilder(this).put(paramName, paramValue);
+        }
 
-        <K> Query<K> returnGeneratedKeys(Class<K> keyType);
+        public Batch batch() throws SQLException {
+            return withConnection(connection -> {
+                PreparedStatement query = connection.prepareStatement(sql);
+
+                return new Batch(connection, query);
+            });
+        }
+
+        public <K> Query<K> returnGeneratedKeys(Class<K> keyType) {
+            return new Query<K>(sql) {
+                @Override
+                public Stream<K> execute(Object... parameters) throws SQLException {
+                    return withConnection(connection -> {
+                        PreparedStatement query = connection.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS);
+                        populate(connection, query, parameters);
+                        query.execute();
+
+                        return stream(connection, query, query.getGeneratedKeys(), row -> (K) Coerce.sqlToJava(row, 1, keyType));
+                    });
+                }
+            };
+        }
+    }
+
+    public static class StatementBuilder {
+        final Statement delegate;
+        final ParsedSql parsedSql;
+        final Map<String, Object> parameters = Maps.newHashMap();
+
+        public StatementBuilder(Statement delegate) {
+            this.delegate = delegate;
+            parsedSql = NamedParameters.parseSqlStatement(delegate.sql);
+        }
+
+        public StatementBuilder put(String paramName, Object paramValue) {
+            parameters.put(paramName, paramValue);
+
+            return this;
+        }
+
+        public boolean execute() throws SQLException {
+            Object[] values = NamedParameters.buildValueArray(parsedSql, parameters, null);
+
+            return delegate.execute(values);
+        }
     }
 
     @FunctionalInterface

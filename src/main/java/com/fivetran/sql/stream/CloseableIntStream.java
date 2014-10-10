@@ -1,4 +1,4 @@
-package com.fivetran.sql;
+package com.fivetran.sql.stream;
 
 import java.util.*;
 import java.util.function.*;

@@ -1,4 +1,4 @@
-package com.fivetran.sql;
+package com.fivetran.sql.stream;
 
 import java.util.Comparator;
 import java.util.Iterator;
@@ -7,12 +7,12 @@ import java.util.Spliterator;
 import java.util.function.*;
 import java.util.stream.*;
 
-class CloseableStream<T> implements Stream<T> {
+public class CloseableStream<T> implements Stream<T> {
 
     private final Stream<T> delegate;
     private final AutoCloseable closeMe;
 
-    CloseableStream(Stream<T> delegate, AutoCloseable closeMe) {
+    public CloseableStream(Stream<T> delegate, AutoCloseable closeMe) {
         this.delegate = delegate;
         this.closeMe = closeMe;
     }

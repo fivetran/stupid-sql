@@ -225,58 +225,20 @@ public class NamedParameters {
      * A larger number of elements is not guaranteed to be supported by the database and
      * is strictly vendor-dependent.
      * @param parsedSql the parsed representation of the SQL statement
-     * @param paramSource the source for named parameters
      * @return the SQL statement with substituted parameters
      * @see #parseSqlStatement
      */
-    public static String substituteNamedParameters(ParsedSql parsedSql, Map<String, ?> paramSource) {
+    public static String substituteNamedParameters(ParsedSql parsedSql) {
         String originalSql = parsedSql.getOriginalSql();
         StringBuilder actualSql = new StringBuilder();
         List<String> paramNames = parsedSql.getParameterNames();
         int lastIndex = 0;
         for (int i = 0; i < paramNames.size(); i++) {
-            String paramName = paramNames.get(i);
             int[] indexes = parsedSql.getParameterIndexes(i);
             int startIndex = indexes[0];
             int endIndex = indexes[1];
             actualSql.append(originalSql, lastIndex, startIndex);
-            if (paramSource != null && paramSource.containsKey(paramName)) {
-                Object value = paramSource.get(paramName);
-                if (value instanceof SqlParameterValue) {
-                    value = ((SqlParameterValue) value).getValue();
-                }
-                if (value instanceof Collection) {
-                    Iterator<?> entryIter = ((Collection<?>) value).iterator();
-                    int k = 0;
-                    while (entryIter.hasNext()) {
-                        if (k > 0) {
-                            actualSql.append(", ");
-                        }
-                        k++;
-                        Object entryItem = entryIter.next();
-                        if (entryItem instanceof Object[]) {
-                            Object[] expressionList = (Object[]) entryItem;
-                            actualSql.append("(");
-                            for (int m = 0; m < expressionList.length; m++) {
-                                if (m > 0) {
-                                    actualSql.append(", ");
-                                }
-                                actualSql.append("?");
-                            }
-                            actualSql.append(")");
-                        }
-                        else {
-                            actualSql.append("?");
-                        }
-                    }
-                }
-                else {
-                    actualSql.append("?");
-                }
-            }
-            else {
-                actualSql.append("?");
-            }
+            actualSql.append("?");
             lastIndex = endIndex;
         }
         actualSql.append(originalSql, lastIndex, originalSql.length());

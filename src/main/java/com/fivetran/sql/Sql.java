@@ -57,14 +57,17 @@ public class Sql {
      * @throws SQLException
      */
     public <T> Query<T> query(@Language("SQL") String sql, Class<T> type) throws SQLException {
-        ResultSetMetaData schema = metaData(sql);
+        ParsedSql parsedSql = NamedParameters.parseSqlStatement(sql);
+        String niceSql = NamedParameters.substituteNamedParameters(parsedSql);
+
+        ResultSetMetaData schema = metaData(niceSql);
         ToJava<T> coerce = toJava(schema, type);
 
-        return new Query<T>(sql) {
+        return new Query<T>(parsedSql, niceSql) {
             @Override
             public Stream<T> execute(Object... parameters) throws SQLException {
                 return withConnection(connection -> {
-                    PreparedStatement query = connection.prepareStatement(sql);
+                    PreparedStatement query = connection.prepareStatement(niceSql);
                     populate(connection, query, parameters);
 
                     return stream(connection, query, coerce::coerce);
@@ -102,11 +105,14 @@ public class Sql {
      * @throws SQLException
      */
     public Statement statement(@Language("SQL") String sql) throws SQLException {
-        return new Statement(sql) {
+        ParsedSql parsedSql = NamedParameters.parseSqlStatement(sql);
+        String niceSql = NamedParameters.substituteNamedParameters(parsedSql);
+
+        return new Statement(parsedSql, niceSql) {
             @Override
             public boolean execute(Object... parameters) throws SQLException {
                 try (Connection connection = open(database);
-                     PreparedStatement query = connection.prepareStatement(sql)) {
+                     PreparedStatement query = connection.prepareStatement(niceSql)) {
 
                     populate(connection, query, parameters);
 
@@ -276,13 +282,17 @@ public class Sql {
          * @throws SQLException
          */
         ResultSet execute(Object... parameters) throws SQLException;
+
+        // TODO put
     }
 
     public abstract class Query<T> {
+        final ParsedSql parsed;
         final String sql;
 
-        public Query(String sql) {
-            this.sql = sql;
+        public Query(ParsedSql parsedSql, String niceSql) {
+            this.parsed = parsedSql;
+            this.sql = niceSql;
         }
 
         /**
@@ -302,12 +312,10 @@ public class Sql {
 
     public static class QueryBuilder<T> {
         final Query<T> delegate;
-        final ParsedSql parsedSql;
         final Map<String, Object> parameters = Maps.newHashMap();
 
         public QueryBuilder(Query<T> delegate) {
             this.delegate = delegate;
-            parsedSql = NamedParameters.parseSqlStatement(delegate.sql);
         }
 
         public QueryBuilder<T> put(String paramName, Object paramValue) {
@@ -317,17 +325,19 @@ public class Sql {
         }
 
         public Stream<T> execute() throws SQLException {
-            Object[] values = NamedParameters.buildValueArray(parsedSql, parameters, null);
+            Object[] values = NamedParameters.buildValueArray(delegate.parsed, parameters, null);
 
-            return delegate.execute(values);
+            return delegate.execute(delegate.sql, values);
         }
     }
 
     public abstract class Statement {
+        final ParsedSql parsed;
         final String sql;
 
-        protected Statement(String sql) {
-            this.sql = sql;
+        protected Statement(ParsedSql parsedSql, String niceSql) {
+            this.parsed = parsedSql;
+            this.sql = niceSql;
         }
 
         /**
@@ -353,7 +363,7 @@ public class Sql {
         }
 
         public <K> Query<K> returnGeneratedKeys(Class<K> keyType) {
-            return new Query<K>(sql) {
+            return new Query<K>(parsed, sql) {
                 @Override
                 public Stream<K> execute(Object... parameters) throws SQLException {
                     return withConnection(connection -> {
@@ -370,12 +380,10 @@ public class Sql {
 
     public static class StatementBuilder {
         final Statement delegate;
-        final ParsedSql parsedSql;
         final Map<String, Object> parameters = Maps.newHashMap();
 
         public StatementBuilder(Statement delegate) {
             this.delegate = delegate;
-            parsedSql = NamedParameters.parseSqlStatement(delegate.sql);
         }
 
         public StatementBuilder put(String paramName, Object paramValue) {
@@ -385,7 +393,7 @@ public class Sql {
         }
 
         public boolean execute() throws SQLException {
-            Object[] values = NamedParameters.buildValueArray(parsedSql, parameters, null);
+            Object[] values = NamedParameters.buildValueArray(delegate.parsed, parameters, null);
 
             return delegate.execute(values);
         }
@@ -419,5 +427,7 @@ public class Sql {
             statement.close();
             connection.close();
         }
+
+        // TODO put named parameter
     }
 }

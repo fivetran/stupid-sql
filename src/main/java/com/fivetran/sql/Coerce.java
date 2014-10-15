@@ -62,7 +62,8 @@ public class Coerce {
         else if (type == BigDecimal.class)
             return row.getBigDecimal(column);
         else if (type == Instant.class)
-            return row.getTimestamp(column).toInstant();
+            if (row.getTimestamp(column) == null) return null;
+            else return row.getTimestamp(column).toInstant();
         else if (type == LocalDate.class)
             return row.getDate(column).toLocalDate();
         // If column is json, delegate to Jackson

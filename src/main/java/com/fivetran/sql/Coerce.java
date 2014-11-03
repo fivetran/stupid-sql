@@ -155,8 +155,12 @@ public class Coerce {
 
 
     // TODO this should really use sql.Types integers, and fall back to strings
-    public static Object javaToSql(Connection connection, Object value, String type) throws SQLException {
-        if (type.equals("json"))
+    public static Object javaToSql(Connection connection, Object value, int typeId, String type) throws SQLException {
+        if (typeId == Types.TIMESTAMP || typeId == Types.TIMESTAMP_WITH_TIMEZONE)
+            return javaToTimestamp(value);
+        else if (typeId == Types.DATE)
+            return javaToDate(value);
+        else if (type.equals("json"))
             try {
                 String serialized = Config.JSON.writeValueAsString(value); // TODO PGobject
                 PGobject json = new PGobject();
@@ -169,11 +173,7 @@ public class Coerce {
                 throw new RuntimeException(e);
             }
         else if (type.charAt(0) == '_')
-            return javaToArray(connection, value, type.substring(1));
-        else if (type.equals("timestamp"))
-            return javaToTimestamp(value);
-        else if (type.equals("date"))
-            return javaToDate(value);
+            return javaToArray(connection, value, typeId, type.substring(1));
         else
             return value;
     }
@@ -196,30 +196,30 @@ public class Coerce {
             throw new SqlMappingException("Don't know how to coerce " + value + " to timestamp");
     }
 
-    private static Array javaToArray(Connection connection, Object value, String type) throws SQLException {
+    private static Array javaToArray(Connection connection, Object value, int typeId, String typeName) throws SQLException {
         if (value instanceof List)
-            return listToArray(connection, (List) value, type);
+            return listToArray(connection, (List) value, typeId, typeName);
         else if (value instanceof Object[])
-            return arrayToArray(connection, (Object[]) value, type);
+            return arrayToArray(connection, (Object[]) value, typeId, typeName);
         else
             throw new SqlMappingException("Don't know how to coerce " + value + " to array");
     }
 
-    private static Array arrayToArray(Connection connection, Object[] values, String type) throws SQLException {
+    private static Array arrayToArray(Connection connection, Object[] values, int typeId, String typeName) throws SQLException {
         Object[] array = new Object[values.length];
 
         for (int i = 0; i < values.length; i++)
-            array[i] = javaToSql(connection, values[i], type);
+            array[i] = javaToSql(connection, values[i], typeId, typeName);
 
-        return connection.createArrayOf(type, array);
+        return connection.createArrayOf(typeName, array);
     }
 
-    private static Array listToArray(Connection connection, List values, String type) throws SQLException {
+    private static Array listToArray(Connection connection, List values, int typeId, String typeName) throws SQLException {
         Object[] array = new Object[values.size()];
 
         for (int i = 0; i < values.size(); i++)
-            array[i] = javaToSql(connection, values.get(i), type);
+            array[i] = javaToSql(connection, values.get(i), typeId, typeName);
 
-        return connection.createArrayOf(type, array);
+        return connection.createArrayOf(typeName, array);
     }
 }

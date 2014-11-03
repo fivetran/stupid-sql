@@ -236,8 +236,9 @@ public class Sql {
             throw new SqlMappingException("Expected " + metaData.getParameterCount() + " parameters but found " + parameters.length);
 
         for (int i = 0; i < parameters.length; i++) {
-            String name = metaData.getParameterTypeName(i + 1);
-            Object value = Coerce.javaToSql(connection, parameters[i], name);
+            int typeId = metaData.getParameterType(i + 1);
+            String typeName = metaData.getParameterTypeName(i + 1);
+            Object value = Coerce.javaToSql(connection, parameters[i], typeId, typeName);
 
             q.setObject(i + 1, value);
         }

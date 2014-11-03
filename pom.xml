@@ -82,6 +82,20 @@
         </dependency>
     </dependencies>
 
+    <repositories>
+        <repository>
+            <id>aws-release</id>
+            <name>AWS Release Repository</name>
+            <url>s3://fivetran-maven/release</url>
+        </repository>
+
+        <repository>
+            <id>aws-snapshot</id>
+            <name>AWS Snapshot Repository</name>
+            <url>s3://fivetran-maven/snapshot</url>
+        </repository>
+    </repositories>
+
     <build>
         <extensions>
             <!-- Teach maven how to use S3 as a private repo -->

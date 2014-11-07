@@ -48,10 +48,29 @@ public class ToJavaPojo<T> implements ToJava<T> {
         // Check that we have found every name
         for (int i = 0; i < names.length; i++) {
             if (columnIndex[i] == 0)
-                throw new SqlMappingException("Missing column " + names[i] + " in query " + metaData);
+                throw missingColumn(metaData, names[i]);
         }
 
         return columnIndex;
+    }
+
+    private static SqlMappingException missingColumn(ResultSetMetaData metaData, String name) throws SQLException {
+        StringBuilder message = new StringBuilder();
+
+        message.append("Missing column ");
+        message.append(name);
+        message.append(" in (");
+
+        for (int i = 1; i < metaData.getColumnCount(); i++) {
+            message.append(metaData.getColumnName(i));
+            message.append(", ");
+        }
+
+        message.append(metaData.getColumnName(metaData.getColumnCount()));
+
+        message.append(")");
+
+        return new SqlMappingException(message.toString());
     }
 
     private static boolean isAnnotated(Constructor<?> constructor) {

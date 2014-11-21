@@ -321,7 +321,7 @@ public class Sql {
         public ResultSet execute() throws SQLException {
             Object[] values = NamedParameters.buildValueArray(delegate.parsed, parameters, null);
 
-            return delegate.execute(delegate.sql, values);
+            return delegate.execute(values);
         }
     }
 

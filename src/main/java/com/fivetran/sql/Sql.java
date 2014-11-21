@@ -33,13 +33,20 @@ public class Sql {
     // TODO transaction()
 
     public DirectQuery query(@Language("SQL") String sql) throws SQLException {
-        return parameters -> withConnection(connection -> {
-            PreparedStatement query = connection.prepareStatement(sql);
-            populate(connection, query, parameters);
-            FixDates fixDates = new FixDates(query.executeQuery());
+        ParsedSql parsedSql = NamedParameters.parseSqlStatement(sql);
+        String niceSql = NamedParameters.substituteNamedParameters(parsedSql);
 
-            return new ResultSetConnection(fixDates, connection);
-        });
+        return new DirectQuery(parsedSql, niceSql) {
+            @Override
+            public ResultSet execute(Object... parameters) throws SQLException {
+                return withConnection(connection -> {
+                    PreparedStatement query = connection.prepareStatement(niceSql);
+                    populate(connection, query, parameters);
+
+                    return new FixDates(query.executeQuery());
+                });
+            }
+        };
     }
 
     /**
@@ -273,7 +280,15 @@ public class Sql {
         return connection;
     }
 
-    public interface DirectQuery<T> {
+    public abstract class DirectQuery {
+        final ParsedSql parsed;
+        final String sql;
+
+        public DirectQuery(ParsedSql parsedSql, String niceSql) {
+            this.parsed = parsedSql;
+            this.sql = niceSql;
+        }
+
         /**
          * Allocate a one-time-use {@link java.sql.Connection} and perform the embedded SQL query.
          * When the returned {@code ResultSet} is closed, the {@code Connection} will also be closed.
@@ -282,9 +297,32 @@ public class Sql {
          * @return
          * @throws SQLException
          */
-        ResultSet execute(Object... parameters) throws SQLException;
+        public abstract ResultSet execute(Object... parameters) throws SQLException;
 
-        // TODO put
+        public DirectQueryBuilder put(String paramName, Object paramValue) {
+            return new DirectQueryBuilder(this).put(paramName, paramValue);
+        }
+    }
+
+    public static class DirectQueryBuilder {
+        final DirectQuery delegate;
+        final Map<String, Object> parameters = Maps.newHashMap();
+
+        public DirectQueryBuilder(DirectQuery delegate) {
+            this.delegate = delegate;
+        }
+
+        public DirectQueryBuilder put(String paramName, Object paramValue) {
+            parameters.put(paramName, paramValue);
+
+            return this;
+        }
+
+        public ResultSet execute() throws SQLException {
+            Object[] values = NamedParameters.buildValueArray(delegate.parsed, parameters, null);
+
+            return delegate.execute(delegate.sql, values);
+        }
     }
 
     public abstract class Query<T> {

@@ -42,8 +42,10 @@ public class Sql {
                 return withConnection(connection -> {
                     PreparedStatement query = connection.prepareStatement(niceSql);
                     populate(connection, query, parameters);
+                    ResultSet delegate = query.executeQuery();
+                    ResultSet closeable = new ResultSetConnection(delegate, connection);
 
-                    return new FixDates(query.executeQuery());
+                    return new FixDates(closeable);
                 });
             }
         };

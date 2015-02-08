@@ -7,8 +7,7 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.Maps;
 import org.intellij.lang.annotations.Language;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.log4j.Logger;
 
 import javax.sql.DataSource;
 import java.sql.*;
@@ -21,7 +20,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 public class Sql {
-    private static final Logger log = LoggerFactory.getLogger(Sql.class);
+    private static final Logger log = Logger.getLogger(Sql.class);
     private static final ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
 
     private final DataSource database;

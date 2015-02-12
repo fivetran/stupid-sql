@@ -68,7 +68,7 @@ public class Sql {
         ParsedSql parsedSql = NamedParameters.parseSqlStatement(sql);
         String niceSql = NamedParameters.substituteNamedParameters(parsedSql);
 
-        ResultSetMetaData schema = metaData(niceSql);
+        ResultSetMetaData schema = metadata(niceSql);
         ToJava<T> coerce = toJava(schema, type);
 
         return new Query<T>(parsedSql, niceSql) {
@@ -88,7 +88,7 @@ public class Sql {
                                                                          .weakKeys()
                                                                          .build();
 
-    private ResultSetMetaData metaData(String sql) throws SQLException {
+    public ResultSetMetaData metadata(String sql) throws SQLException {
         try {
             return metaDataCache.get(sql, () -> {
                 try (Connection connection = open(database);

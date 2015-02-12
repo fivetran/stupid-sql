@@ -12,7 +12,7 @@ import java.time.ZoneOffset;
 
 import static org.junit.Assert.assertEquals;
 
-public class CoerceDates {
+public class DateSpecs {
 
     private Sql sql() {
         PGSimpleDataSource source = new PGSimpleDataSource();

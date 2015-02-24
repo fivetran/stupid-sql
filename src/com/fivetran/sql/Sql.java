@@ -152,11 +152,11 @@ public class Sql {
      * @return Body, evaluated with a connection, safely
      */
     private <T extends AutoCloseable> T withConnection(SafeConnection<T> body) throws SQLException {
-        Jdbc4Connection connection = null;
+        Connection connection = null;
         boolean succeeded = false;
 
         try {
-            connection = (Jdbc4Connection) open(database);
+            connection = open(database);
             T result = body.execute(connection);
             succeeded = true;
 

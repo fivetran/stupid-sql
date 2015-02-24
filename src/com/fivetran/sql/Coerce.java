@@ -3,6 +3,7 @@ package com.fivetran.sql;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Lists;
+import com.sun.javafx.scene.control.behavior.OptionalBoolean;
 import org.postgresql.util.PGobject;
 
 import java.io.IOException;
@@ -10,11 +11,10 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.math.BigDecimal;
 import java.sql.*;
+import java.sql.Date;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.List;
+import java.util.*;
 
 public class Coerce {
     static Object sqlToJava(ResultSet row, int column, Type type) throws SQLException {
@@ -72,9 +72,67 @@ public class Coerce {
         // Coerce arrays and json to list
         else if (isList(type))
             return sqlToList(row, column, listType(type));
+        else if (type == OptionalBoolean.class) {
+            Boolean value = (Boolean) row.getObject(column);
+
+            if (value == null)
+                return OptionalBoolean.ANY;
+            else
+                return value ? OptionalBoolean.TRUE : OptionalBoolean.FALSE;
+        }
+        else if (type == OptionalInt.class) {
+            Integer value = (Integer) row.getObject(column);
+
+            if (value == null)
+                return OptionalInt.empty();
+            else
+                return OptionalInt.of(value);
+        }
+        else if (type == OptionalLong.class) {
+            Long value = (Long) row.getObject(column);
+
+            if (value == null)
+                return OptionalLong.empty();
+            else
+                return OptionalLong.of(value);
+        }
+        else if (type == OptionalDouble.class) {
+            Double value = (Double) row.getObject(column);
+
+            if (value == null)
+                return OptionalDouble.empty();
+            else
+                return OptionalDouble.of(value);
+        }
+        else if (isOptional(type))
+            return sqlToOptional(row, column, optionalType(type));
         else
             throw new IllegalArgumentException("Don't know how to create " + type);
         // TODO arrays
+    }
+
+    private static Object sqlToOptional(ResultSet row, int column, Type type) throws SQLException {
+        Object value = row.getObject(column);
+
+        return Optional.ofNullable(value);
+    }
+
+    private static Type optionalType(Type type) {
+        if (type == Optional.class)
+            return Object.class;
+        else if (type instanceof ParameterizedType)
+            return ((ParameterizedType) type).getActualTypeArguments()[0];
+        else
+            throw new RuntimeException("Don't know how to get optional element type from " + type);
+    }
+
+    private static boolean isOptional(Type type) {
+        if (type == Optional.class)
+            return true;
+        else if (type instanceof ParameterizedType)
+            return ((ParameterizedType) type).getRawType() == Optional.class;
+        else
+            return false;
     }
 
     private static boolean isList(Type type) {

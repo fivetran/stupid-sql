@@ -8,9 +8,11 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.Maps;
 import org.intellij.lang.annotations.Language;
 import org.apache.log4j.Logger;
+import org.postgresql.jdbc4.Jdbc4Connection;
 
 import javax.sql.DataSource;
 import java.sql.*;
+import java.time.ZoneOffset;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -24,9 +26,19 @@ public class Sql {
     private static final ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
 
     private final DataSource database;
+    private final ZoneOffset timeZone;
 
     public Sql(DataSource database) {
+        this(database, ZoneOffset.UTC);
+    }
+
+    public Sql withTimeZone(ZoneOffset zone) {
+        return new Sql(database, zone);
+    }
+
+    private Sql(DataSource database, ZoneOffset timeZone) {
         this.database = database;
+        this.timeZone = timeZone;
     }
 
     // TODO transaction()
@@ -140,11 +152,11 @@ public class Sql {
      * @return Body, evaluated with a connection, safely
      */
     private <T extends AutoCloseable> T withConnection(SafeConnection<T> body) throws SQLException {
-        Connection connection = null;
+        Jdbc4Connection connection = null;
         boolean succeeded = false;
 
         try {
-            connection = open(database);
+            connection = (Jdbc4Connection) open(database);
             T result = body.execute(connection);
             succeeded = true;
 

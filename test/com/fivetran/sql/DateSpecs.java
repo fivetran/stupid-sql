@@ -5,10 +5,8 @@ import org.postgresql.ds.PGSimpleDataSource;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.*;
+import java.util.TimeZone;
 
 import static org.junit.Assert.assertEquals;
 
@@ -38,7 +36,7 @@ public class DateSpecs {
     }
 
     @Test
-    public void timestamp() throws SQLException {
+    public void castAsTimestamp() throws SQLException {
         try (ResultSet rows = sql().query("SELECT cast('2000-01-01' AS TIMESTAMP) AS d").execute()) {
             rows.next();
 
@@ -46,6 +44,24 @@ public class DateSpecs {
             Object byName = rows.getObject("d");
 
             Instant expected = rows.getTimestamp(1).toInstant();
+
+            assertEquals(expected, byIndex);
+            assertEquals(expected, byName);
+        }
+    }
+
+    @Test
+    public void timestampWithoutTimezone() throws SQLException {
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
+
+        try (ResultSet rows = sql().query("SELECT cast('2000-01-01 00:00:00' AS TIMESTAMP) as d").execute()) {
+            rows.next();
+
+            Object byIndex = rows.getObject(1);
+            Object byName = rows.getObject("d");
+
+            LocalDateTime local = LocalDateTime.of(2000, 1, 1, 0, 0, 0);
+            Instant expected = local.toInstant(ZoneOffset.UTC);
 
             assertEquals(expected, byIndex);
             assertEquals(expected, byName);
